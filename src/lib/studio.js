@@ -472,6 +472,19 @@ export const NEWSLETTER_PURPOSES = [
   { id: "own",      label: "My own idea (use my topics)" },
 ];
 
+// What the notes box should ask for, per purpose. "primary" purposes are the
+// ones whose whole point is her own words (a story, a recap), so the box leads
+// the screen and her notes become the body instead of generic filler.
+export const NL_ASK = {
+  whatsnew: { label: "What's new this month? (optional)", placeholder: "a new flavor, a new class spot, a fun milestone…" },
+  classes:  { label: "Anything to add about the classes? (optional)", placeholder: "a theme, who it's perfect for, a special guest…" },
+  seasonal: { label: "Which holiday or season, and any order-by date?", placeholder: "Mother's Day, order by May 8…", primary: true },
+  story:    { label: "What's the story? Tell me what happened.", placeholder: "the moment, who it was for, why it stuck with you…", primary: true },
+  recap:    { label: "How did the last class go? What should I mention?", placeholder: "what you made, a sweet moment, what's coming next…", primary: true },
+  hello:    { label: "Anything you want to say? (optional)", placeholder: "a thank-you, what you're grateful for…" },
+  own:      { label: "What do you want this email to say?", placeholder: "write your idea in a few words or full sentences…", primary: true },
+};
+
 const NL_SUBJECTS = {
   whatsnew: ["A few sweet things this month", "Fresh from my kitchen this month", "What's new at Sweet B's", "Grab a coffee, here's what's baking", "A little sweetness for your inbox"],
   classes:  ["New class dates just opened", "Come decorate with me", "Let's play with buttercream", "Seats are open (they go fast)", "New classes on the calendar"],
@@ -589,9 +602,13 @@ export function generateNewsletter({ purpose = "whatsnew", topics = "", events =
   const t = (topics || "").trim();
   const topicsPara = t ? cap(/[.!?]$/.test(t) ? t : `${t}.`) : "";
 
+  const primary = NL_ASK[purpose]?.primary;
   const intro = [opener];
   if (purpose === "own") {
     intro.push(topicsPara || "I just wanted to say a quick hello from my kitchen and thank you for being here.");
+  } else if (primary) {
+    // Her own words are the point here; fall back to a gentle beat only if she left it blank.
+    intro.push(topicsPara || pick(NL_BEATS[purpose] || [], variant));
   } else {
     const beat = pick(NL_BEATS[purpose] || [], variant);
     if (beat) intro.push(beat);
@@ -654,6 +671,29 @@ export function generateNewsletter({ purpose = "whatsnew", topics = "", events =
       "Keep it short, people skim, so the subject line does the heavy lifting.",
     ],
   });
+}
+
+// Tidy rough notes into clean, on-voice sentences (offline, deterministic).
+// Capitalizes, fixes spacing and end punctuation, keeps her paragraphs, and
+// strips em dashes via sanitize(). It polishes her words; it never invents facts.
+// (Swap for the generate-content edge function later for a fuller AI rewrite.)
+export function polishNote(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+  const tidy = raw
+    .split(/\n+/)
+    .map((para) => {
+      let s = para.replace(/\s+/g, " ").trim();
+      if (!s) return "";
+      s = s.replace(/([.!?])([A-Za-z])/g, "$1 $2"); // add a missing space after a sentence end
+      s = s.charAt(0).toUpperCase() + s.slice(1);
+      s = s.replace(/([.!?])\s+([a-z])/g, (_m, punct, ch) => `${punct} ${ch.toUpperCase()}`);
+      if (!/[.!?]$/.test(s)) s += ".";
+      return s;
+    })
+    .filter(Boolean)
+    .join("\n\n");
+  return sanitize(tidy);
 }
 
 // Email-appropriate CTA (a real button, not "link in bio"), by goal.

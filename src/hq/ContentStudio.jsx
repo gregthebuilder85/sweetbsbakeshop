@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { upcomingEvents } from "../lib/db.js";
-import { generate, generateNewsletter, WEEK_PLAN, PROMO_OCCASIONS, NEWSLETTER_PURPOSES, BIZ } from "../lib/studio.js";
+import { generate, generateNewsletter, WEEK_PLAN, PROMO_OCCASIONS, NEWSLETTER_PURPOSES, NL_ASK, polishNote, BIZ } from "../lib/studio.js";
 
 const CFG_KEY = "sweetbs_studio_cfg";
 const SAVED_KEY = "sweetbs_studio_saved";
@@ -35,6 +35,7 @@ export default function ContentStudio() {
   const [nlIncludeClasses, setNlIncludeClasses] = useState(true);
   const [nlVariant, setNlVariant] = useState(0);
   const [nlOut, setNlOut] = useState(null);
+  const [noteMsg, setNoteMsg] = useState("");
 
   const events = upcomingEvents();
   useEffect(() => { if (!eventId && events[0]) setEventId(events[0].id); }, [events, eventId]);
@@ -70,6 +71,12 @@ export default function ContentStudio() {
     const events = upcomingEvents();
     setNlOut(generateNewsletter({ purpose: nlPurpose, topics: nlTopics, events, includeClasses: nlIncludeClasses, vibe: cfg.vibe, goal: cfg.goal, variant: v }));
     setNlVariant(v);
+  }
+
+  function polishMyNotes() {
+    setNlTopics(polishNote(nlTopics));
+    setNoteMsg("Polished");
+    setTimeout(() => setNoteMsg(""), 1500);
   }
 
   function savePost(b) {
@@ -172,8 +179,20 @@ export default function ContentStudio() {
               </div>
             </div>
             <div className="field">
-              <label>Anything to include? (optional)</label>
-              <textarea value={nlTopics} onChange={(e) => setNlTopics(e.target.value)} placeholder="a new flavor, a thank-you, a photo you're featuring…" />
+              <label>{(NL_ASK[nlPurpose] || {}).label || "Anything to include? (optional)"}</label>
+              <textarea
+                value={nlTopics}
+                onChange={(e) => setNlTopics(e.target.value)}
+                placeholder={(NL_ASK[nlPurpose] || {}).placeholder || "a new flavor, a thank-you, a photo you're featuring…"}
+              />
+              <div className="nl-notes-actions">
+                <button className="link-btn" type="button" disabled={!nlTopics.trim()} onClick={polishMyNotes}>
+                  Polish my notes
+                </button>
+                <span className="soft" style={{ fontSize: 12.5 }}>
+                  {noteMsg || "Jot it down rough — I'll clean it up in your voice."}
+                </span>
+              </div>
             </div>
             <label className="nl-check">
               <input type="checkbox" checked={nlIncludeClasses} onChange={(e) => setNlIncludeClasses(e.target.checked)} />

@@ -320,3 +320,5 @@ ul.nice li::before{content:"";position:absolute;left:2px;top:18px;width:10px;hei
 .nl-check{display:flex;align-items:center;gap:9px;margin:0 0 18px;font-size:14px;font-weight:600;color:var(--cocoa);cursor:pointer}
 .nl-check input{width:17px;height:17px;accent-color:var(--berry);cursor:pointer}
 .nl-frame{width:100%;height:660px;border:1px solid var(--blush-line);border-radius:14px;background:var(--butter);display:block}
+.nl-notes-actions{display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap}
+.nl-notes-actions .link-btn:disabled{color:var(--soft);opacity:.6;cursor:not-allowed;text-decoration:none}
