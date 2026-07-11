@@ -57,7 +57,7 @@ export default function About() {
           <img
             src={hero}
             alt="Annalise holding a custom cake"
-            style={{ width: 260, height: 320, objectFit: "cover", borderRadius: 18, margin: "0 auto 26px", boxShadow: "0 20px 50px -28px rgba(59,42,36,.5)" }}
+            style={{ width: 260, maxWidth: "100%", aspectRatio: "13 / 16", objectFit: "cover", borderRadius: 18, display: "block", margin: "0 auto 26px", boxShadow: "0 20px 50px -28px rgba(59,42,36,.5)" }}
           />
           <blockquote>"I believe in celebrating the sweet moments — big or small."</blockquote>
           <p className="who">Annalise · Sweet B's Bake Shop</p>

@@ -10,6 +10,7 @@ import {
 } from "../lib/db.js";
 import { PHOTO_OPTIONS } from "../assets/index.js";
 import { money, fmtDateTime, seatsLeft } from "../lib/format.js";
+import { improveClass } from "../lib/improve.js";
 
 const BLANK = {
   title: "",
@@ -31,13 +32,42 @@ const BLANK = {
 export default function EventsAdmin() {
   const [rev, setRev] = useState(0);
   const [form, setForm] = useState(null); // null | BLANK-like | existing
+  const [improving, setImproving] = useState(false);
+  const [improveErr, setImproveErr] = useState("");
   const events = listEvents();
   const refresh = () => setRev((n) => n + 1);
 
+  async function improveForMe() {
+    setImproving(true);
+    setImproveErr("");
+    try {
+      const out = await improveClass({
+        title: form.title,
+        subtitle: form.subtitle,
+        description: form.description,
+        includes: form.includes,
+        audience: form.audience,
+      });
+      setForm((f) => ({
+        ...f,
+        title: out.title || f.title,
+        subtitle: out.subtitle || f.subtitle,
+        description: out.description || f.description,
+        includes: out.includes && out.includes.length ? out.includes.join("\n") : f.includes,
+      }));
+    } catch (e) {
+      setImproveErr("Couldn't polish that just now. Give it another go in a moment.");
+    } finally {
+      setImproving(false);
+    }
+  }
+
   function openNew() {
+    setImproveErr("");
     setForm({ ...BLANK });
   }
   function openEdit(ev) {
+    setImproveErr("");
     const d = new Date(ev.starts_at);
     const e = ev.ends_at ? new Date(ev.ends_at) : null;
     setForm({
@@ -109,6 +139,27 @@ export default function EventsAdmin() {
         </div>
 
         <div className="panel" style={{ maxWidth: 760 }}>
+          <div className="improve-row">
+            <div>
+              <b>Not sure how to word it?</b>
+              <span>
+                Jot down the basics, then let me polish the name, the one liner, what you'll make,
+                and what's included, all in your voice.
+              </span>
+            </div>
+            <button
+              className="btn gold sm"
+              type="button"
+              disabled={improving || !(form.title.trim() || form.description.trim())}
+              onClick={improveForMe}
+            >
+              {improving ? "Polishing…" : "✨ Improve for me"}
+            </button>
+          </div>
+          {improveErr && (
+            <p className="hint" style={{ color: "#b23a3a", margin: "-10px 0 18px" }}>{improveErr}</p>
+          )}
+
           <F label="Class name">
             <input value={form.title} onChange={set(form, setForm, "title")} placeholder="Buttercream Bloom Cupcakes" />
           </F>

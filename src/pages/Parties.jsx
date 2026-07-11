@@ -43,7 +43,7 @@ export default function Parties() {
             <img
               src={classPiping}
               alt="Decorating at a private class"
-              style={{ borderRadius: 16, marginTop: 24, height: 300, width: "100%", objectFit: "cover" }}
+              style={{ borderRadius: 16, marginTop: 24, aspectRatio: "3 / 2", width: "100%", objectFit: "cover" }}
             />
           </div>
           <div id="quote">
