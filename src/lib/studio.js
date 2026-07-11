@@ -581,52 +581,190 @@ const pick3 = (pool, v) => {
 export function generateNewsletter({ purpose = "whatsnew", topics = "", events = [], includeClasses = true, vibe = "warm", goal = "both", variant = 0 }) {
   const label = NEWSLETTER_PURPOSES.find((p) => p.id === purpose)?.label || "Newsletter";
 
-  const subjects = pick3(NL_SUBJECTS[purpose] || NL_SUBJECTS.whatsnew, variant)
-    .map((s, i) => `${i + 1}) ${s}`)
-    .join("\n");
+  const subjectsArr = pick3(NL_SUBJECTS[purpose] || NL_SUBJECTS.whatsnew, variant);
+  const subjects = subjectsArr.map((s, i) => `${i + 1}) ${s}`).join("\n");
   const preview = pick(NL_PREVIEWS[purpose] || NL_PREVIEWS.whatsnew, variant);
 
   const opener = pick(NL_OPENERS[purpose] || NL_OPENERS.whatsnew, variant);
   const t = (topics || "").trim();
   const topicsPara = t ? cap(/[.!?]$/.test(t) ? t : `${t}.`) : "";
 
-  const parts = ["Hi friend,", opener];
+  const intro = [opener];
   if (purpose === "own") {
-    parts.push(topicsPara || "I just wanted to say a quick hello from my kitchen and thank you for being here.");
+    intro.push(topicsPara || "I just wanted to say a quick hello from my kitchen and thank you for being here.");
   } else {
     const beat = pick(NL_BEATS[purpose] || [], variant);
-    if (beat) parts.push(beat);
-    if (topicsPara) parts.push(topicsPara);
+    if (beat) intro.push(beat);
+    if (topicsPara) intro.push(topicsPara);
   }
 
-  if (includeClasses && events && events.length) {
-    const up = events.slice(0, 3);
-    const lines = up.map((e, i) => `${i + 1}) ${e.title}, ${fmtDate(e.starts_at)} in ${e.venue_city}`);
-    parts.push(
-      `On the calendar:\n${lines.join("\n")}\n\nSave your seat with the button in this email, or just reply and I'll hold one for you. [your class link]`
-    );
-  }
+  const calendar =
+    includeClasses && events && events.length
+      ? {
+          items: events.slice(0, 3).map((e) => ({ title: e.title, date: fmtDate(e.starts_at), city: e.venue_city })),
+          nudge: "Save your seat with the button below, or just reply and I'll hold one for you.",
+        }
+      : null;
 
   // A warm tie-back to the tagline. "story" already lands it, so skip the echo there.
-  if (purpose !== "story") parts.push(pick(NL_CLOSERS, variant));
-  parts.push(cta(goal, variant));
-  parts.push(`Sweetly,\n${BIZ.owner}\n${BIZ.name}`);
+  const closer = purpose !== "story" ? pick(NL_CLOSERS, variant) : "";
+  const ctaLine = cta(goal, variant);
+  const emailCta = EMAIL_CTA[goal] || EMAIL_CTA.both;
 
+  // Plain-text version (the copy-anywhere block).
+  const parts = ["Hi friend,", ...intro];
+  if (calendar) {
+    const lines = calendar.items.map((c, i) => `${i + 1}) ${c.title}, ${c.date} in ${c.city}`);
+    parts.push(`On the calendar:\n${lines.join("\n")}\n\n${calendar.nudge} [your class link]`);
+  }
+  if (closer) parts.push(closer);
+  parts.push(ctaLine);
+  parts.push(`Sweetly,\n${BIZ.owner}\n${BIZ.name}`);
   const body = clean(parts.join("\n\n"));
+
+  // Premium, email-client-safe HTML version (renders in Gmail, Outlook, Apple Mail, etc.).
+  const html = buildNewsletterHTML({
+    preview: sanitize(preview),
+    intro: intro.map((p) => sanitize(p)),
+    calendar: calendar
+      ? {
+          items: calendar.items.map((c) => ({ title: sanitize(c.title), date: sanitize(c.date), city: sanitize(c.city) })),
+          nudge: sanitize(calendar.nudge),
+        }
+      : null,
+    closer: sanitize(closer),
+    ctaLead: emailCta.lead,
+    buttonLabel: emailCta.label,
+    buttonHref: "[your link]",
+  });
 
   return finalizeResult({
     title: `Newsletter: ${label}`,
+    subject: sanitize(subjectsArr[0]),
+    preview: sanitize(preview),
+    html,
     blocks: [
       { id: "subjects", label: "Subject line options (pick one)", text: subjects },
       { id: "preview", label: "Preview text (the gray line under the subject)", text: preview },
       { id: "body", label: "Your newsletter", text: body },
     ],
     reminders: [
-      "Send this from your email tool (Mailchimp, Flodesk, Mailerlite, etc.).",
-      "Add one nice photo at the top.",
+      "Copy the ready-to-send email below into Gmail, or the HTML into Mailchimp, Flodesk, etc.",
+      "Add one nice photo at the top, and swap [your link] for your real signup or order link.",
       "Keep it short, people skim, so the subject line does the heavy lifting.",
     ],
   });
+}
+
+// Email-appropriate CTA (a real button, not "link in bio"), by goal.
+const EMAIL_CTA = {
+  classes: { lead: "The classes stay cozy and small on purpose, so grab your seat whenever you're ready.", label: "Save your seat" },
+  cakes: { lead: "Whenever you're ready, I would love to start your order.", label: "Start your order" },
+  both: { lead: "Whenever you're ready, come save a seat or start something sweet.", label: "Book a seat or order" },
+};
+
+const esc = (s) =>
+  String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+const nl2br = (s) => esc(s).replace(/\n/g, "<br />");
+
+// Table-based, fully inline-styled HTML email. No external CSS, no background
+// images, bulletproof button, brand colors and type mirrored from the website
+// (theme.css tokens). Degrades cleanly in Outlook (square corners) and shows
+// Georgia / Arial where Fraunces / Karla can't load.
+function buildNewsletterHTML({ preview, intro, calendar, closer, ctaLead, buttonLabel, buttonHref }) {
+  const C = { butter: "#FDF8F0", cocoa: "#3B2A24", berry: "#B23A5E", blush: "#F6E3E6", line: "#EAC9CF", soft: "#8A7268", white: "#FFFFFF" };
+  const serif = "'Fraunces', Georgia, 'Times New Roman', serif";
+  const sans = "'Karla', 'Helvetica Neue', Helvetica, Arial, sans-serif";
+
+  const introHTML = intro.map((p) => `<p style="margin:0 0 18px;">${nl2br(p)}</p>`).join("");
+
+  const calendarHTML = calendar
+    ? `<tr><td class="px" style="padding:8px 40px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${C.blush}" style="background-color:${C.blush};border:1px solid ${C.line};border-radius:14px;">
+<tr><td style="padding:18px 22px 10px;font-family:${serif};font-size:12px;letter-spacing:2px;text-transform:uppercase;color:${C.berry};font-weight:600;">On the calendar</td></tr>
+${calendar.items
+        .map(
+          (c) => `<tr><td style="padding:10px 22px;border-top:1px solid ${C.line};font-family:${sans};">
+<div style="font-size:16px;font-weight:700;color:${C.cocoa};">${esc(c.title)}</div>
+<div style="font-size:13px;color:${C.soft};padding-top:2px;">${esc(c.date)} &middot; ${esc(c.city)}</div>
+</td></tr>`
+        )
+        .join("")}
+<tr><td style="padding:12px 22px 18px;border-top:1px solid ${C.line};font-family:${sans};font-size:14px;line-height:1.55;color:${C.cocoa};">${esc(calendar.nudge)}</td></tr>
+</table>
+</td></tr>`
+    : "";
+
+  const closerHTML = closer
+    ? `<p style="margin:0 0 18px;font-family:${serif};font-style:italic;font-size:18px;line-height:1.5;color:${C.berry};text-align:center;">${esc(closer)}</p>`
+    : "";
+
+  const ctaHTML = `<tr><td class="px" align="center" style="padding:16px 40px 30px;">
+${closerHTML}
+${ctaLead ? `<p style="margin:0 0 20px;font-family:${sans};font-size:16px;line-height:1.6;color:${C.cocoa};text-align:center;">${esc(ctaLead)}</p>` : ""}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>
+<td align="center" bgcolor="${C.berry}" style="background-color:${C.berry};border-radius:999px;padding:15px 38px;">
+<a href="${esc(buttonHref)}" target="_blank" style="font-family:${sans};font-size:15px;font-weight:700;letter-spacing:.3px;color:${C.white};text-decoration:none;display:inline-block;">${esc(buttonLabel)}</a>
+</td>
+</tr></table>
+</td></tr>`;
+
+  return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<title>Sweet B's Bake Shop</title>
+<!--[if mso]><style type="text/css">body,table,td,a,p,div{font-family:Georgia,'Times New Roman',serif !important;}</style><![endif]-->
+<style type="text/css">
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=Karla:wght@400;500;700&display=swap');
+body{margin:0;padding:0;width:100% !important;background-color:${C.butter};-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}
+img{border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;}
+table{border-collapse:collapse !important;}
+a{color:${C.berry};}
+@media only screen and (max-width:620px){
+.container{width:100% !important;}
+.px{padding-left:24px !important;padding-right:24px !important;}
+}
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:${C.butter};">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;font-size:1px;line-height:1px;color:${C.butter};">${esc(preview)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${C.butter}" style="background-color:${C.butter};">
+<tr><td align="center" style="padding:28px 12px;">
+<table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:${C.white};border:1px solid ${C.line};border-radius:18px;overflow:hidden;">
+<tr><td align="center" bgcolor="${C.berry}" style="background-color:${C.berry};padding:32px 24px;">
+<div style="font-family:${serif};font-size:12px;letter-spacing:4px;text-transform:uppercase;color:${C.blush};">Sweet B's</div>
+<div style="font-family:${serif};font-size:32px;font-weight:600;color:${C.white};padding-top:2px;">Bake Shop</div>
+<div style="font-family:${sans};font-size:13px;font-style:italic;color:${C.blush};padding-top:10px;">Life is short, make it sweet.</div>
+</td></tr>
+<tr><td class="px" style="padding:34px 40px 6px;font-family:${sans};font-size:16px;line-height:1.65;color:${C.cocoa};">
+<p style="margin:0 0 18px;">Hi friend,</p>
+${introHTML}
+</td></tr>
+${calendarHTML}
+${ctaHTML}
+<tr><td class="px" style="padding:6px 40px 34px;font-family:${sans};font-size:16px;line-height:1.6;color:${C.cocoa};">
+<p style="margin:0;">Sweetly,</p>
+<p style="margin:2px 0 0;font-family:${serif};font-size:21px;color:${C.berry};">Annalise</p>
+<p style="margin:0;font-size:14px;color:${C.soft};">Sweet B's Bake Shop</p>
+</td></tr>
+<tr><td align="center" bgcolor="${C.blush}" style="background-color:${C.blush};padding:24px 30px;font-family:${sans};font-size:12px;line-height:1.6;color:${C.soft};">
+<div style="font-family:${serif};font-size:16px;color:${C.cocoa};">Sweet B's Bake Shop</div>
+<div style="padding-top:5px;">Lincolnshire, IL &middot; Serving Chicagoland's northern suburbs</div>
+<div style="padding-top:6px;">Custom orders need about 2 weeks' notice.</div>
+<div style="padding-top:12px;"><a href="[unsubscribe]" style="color:${C.soft};text-decoration:underline;">Unsubscribe</a></div>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
 }
 
 // --- weekly plan (the strategist, simplified) ------------------------------

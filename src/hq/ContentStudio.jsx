@@ -181,7 +181,12 @@ export default function ContentStudio() {
             </label>
             <button className="btn" onClick={() => runNewsletter(0)}>Write my newsletter</button>
           </div>
-          {nlOut && <Output out={nlOut} onRegen={() => runNewsletter(nlVariant + 1)} onSave={savePost} onReset={() => setNlOut(null)} />}
+          {nlOut && (
+            <>
+              <Output out={nlOut} onRegen={() => runNewsletter(nlVariant + 1)} onSave={savePost} onReset={() => setNlOut(null)} />
+              {nlOut.html && <EmailPanel html={nlOut.html} />}
+            </>
+          )}
         </>
       )}
 
@@ -330,6 +335,50 @@ function Output({ out, onRegen, onSave, onReset }) {
           {b.hint && <p className="soft" style={{ fontSize: 13, margin: "8px 0 0" }}>{b.hint}</p>}
         </div>
       ))}
+    </div>
+  );
+}
+
+function EmailPanel({ html }) {
+  const [msg, setMsg] = useState("");
+  const flash = (m) => { setMsg(m); setTimeout(() => setMsg(""), 1600); };
+
+  function copyForEmail() {
+    const done = () => flash("Copied — paste into a new email");
+    try {
+      if (window.ClipboardItem && navigator.clipboard?.write) {
+        const item = new window.ClipboardItem({
+          "text/html": new Blob([html], { type: "text/html" }),
+          "text/plain": new Blob([html], { type: "text/plain" }),
+        });
+        navigator.clipboard.write([item]).then(done, () => navigator.clipboard.writeText(html).then(done, () => {}));
+      } else {
+        navigator.clipboard?.writeText(html).then(done, () => {});
+      }
+    } catch {
+      navigator.clipboard?.writeText(html).then(done, () => {});
+    }
+  }
+
+  function copyCode() {
+    navigator.clipboard?.writeText(html).then(() => flash("HTML code copied"), () => {});
+  }
+
+  return (
+    <div style={{ maxWidth: 760, marginTop: 24 }}>
+      <div className="out-actions">
+        <p className="kicker" style={{ margin: 0 }}>Ready-to-send email</p>
+        <span className="hq-actions">
+          <button className="btn sm" onClick={copyForEmail}>Copy for Gmail / Outlook</button>
+          <button className="btn sm line" onClick={copyCode}>Copy HTML code</button>
+          {msg && <span className="soft" style={{ fontSize: 13 }}>{msg}</span>}
+        </span>
+      </div>
+      <p className="soft" style={{ fontSize: 13, margin: "0 0 12px" }}>
+        <b>Copy for Gmail / Outlook</b> pastes the finished email straight into a new message. <b>Copy HTML code</b>
+        {" "}drops into Mailchimp, Flodesk, or any custom-HTML block. Swap <b>[your link]</b> before you send.
+      </p>
+      <iframe title="Email preview" className="nl-frame" srcDoc={html} sandbox="" />
     </div>
   );
 }
