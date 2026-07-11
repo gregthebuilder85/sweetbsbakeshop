@@ -1,0 +1,17 @@
+# Netlify build + deploy config for Sweet B's HQ (Vite + React SPA).
+# Without this, Netlify was publishing the repo root (raw index.html pointing at
+# /src/main.jsx) instead of the built site, which loads as a blank page.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback: serve index.html for client-side routes (/hq, /classes/:slug, …)
+# so a refresh or deep link doesn't 404. Mirrors public/_redirects.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
