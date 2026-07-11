@@ -625,17 +625,17 @@ export function generateNewsletter({ purpose = "whatsnew", topics = "", events =
 
   // A warm tie-back to the tagline. "story" already lands it, so skip the echo there.
   const closer = purpose !== "story" ? pick(NL_CLOSERS, variant) : "";
-  const ctaLine = cta(goal, variant);
   const emailCta = EMAIL_CTA[goal] || EMAIL_CTA.both;
 
-  // Plain-text version (the copy-anywhere block).
+  // Plain-text version (the copy-anywhere block). Email-appropriate wording:
+  // reply-or-link, never "link in my bio" and never "the button below".
   const parts = ["Hi friend,", ...intro];
   if (calendar) {
     const lines = calendar.items.map((c, i) => `${i + 1}) ${c.title}, ${c.date} in ${c.city}`);
-    parts.push(`On the calendar:\n${lines.join("\n")}\n\n${calendar.nudge} [your class link]`);
+    parts.push(`On the calendar:\n${lines.join("\n")}\n\nReply to this email and I'll hold your spot, or grab it here: [your class link]`);
   }
   if (closer) parts.push(closer);
-  parts.push(ctaLine);
+  parts.push(emailCta.text);
   parts.push(`Sweetly,\n${BIZ.owner}\n${BIZ.name}`);
   const body = clean(parts.join("\n\n"));
 
@@ -696,11 +696,24 @@ export function polishNote(text) {
   return sanitize(tidy);
 }
 
-// Email-appropriate CTA (a real button, not "link in bio"), by goal.
+// Email-appropriate CTA (a real button / reply, not "link in bio"), by goal.
+// lead + label drive the HTML button; text is the plain-text version's line.
 const EMAIL_CTA = {
-  classes: { lead: "The classes stay cozy and small on purpose, so grab your seat whenever you're ready.", label: "Save your seat" },
-  cakes: { lead: "Whenever you're ready, I would love to start your order.", label: "Start your order" },
-  both: { lead: "Whenever you're ready, come save a seat or start something sweet.", label: "Book a seat or order" },
+  classes: {
+    lead: "The classes stay cozy and small on purpose, so grab your seat whenever you're ready.",
+    label: "Save your seat",
+    text: "Whenever you're ready, just reply to this email or grab your seat here: [your link]",
+  },
+  cakes: {
+    lead: "Whenever you're ready, I would love to start your order.",
+    label: "Start your order",
+    text: "Whenever you're ready, just reply to this email or start your order here: [your link]",
+  },
+  both: {
+    lead: "Whenever you're ready, come save a seat or start something sweet.",
+    label: "Book a seat or order",
+    text: "Whenever you're ready, just reply to this email or use my link: [your link]",
+  },
 };
 
 const esc = (s) =>
